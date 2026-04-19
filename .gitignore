@@ -1,0 +1,11 @@
+.DS_Store
+
+# Build outputs
+alice
+bob
+kdc
+
+# Docker and local env noise
+.env
+.env.*
+!.env.example

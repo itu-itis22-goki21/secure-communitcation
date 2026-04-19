@@ -1,0 +1,26 @@
+services:
+  kdc:
+    build: .
+    command: ["./kdc"]
+    environment:
+      KDC_PORT: "5000"
+
+  bob:
+    build: .
+    command: ["./bob"]
+    environment:
+      BOB_PORT: "5001"
+    depends_on:
+      - kdc
+
+  alice:
+    build: .
+    command: ["./alice"]
+    environment:
+      KDC_HOST: "kdc"
+      KDC_PORT: "5000"
+      BOB_HOST: "bob"
+      BOB_PORT: "5001"
+    depends_on:
+      - kdc
+      - bob
