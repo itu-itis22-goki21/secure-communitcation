@@ -49,7 +49,7 @@
 \newcommand{\ticketvalue}{\texttt{<paste Bob ticket ciphertext from terminal>}}
 \newcommand{\ciphertextvalue}{\texttt{<paste encrypted payload sent to Bob>}}
 \newcommand{\plaintextvalue}{\texttt{\studentid\ Network Sec.}}
-\newcommand{\hashvalue}{\texttt{0d13a3096a21a1fcd7582676ae5517068d03519f0e4d4bc1918636c12a278a51}}
+\newcommand{\hashvalue}{\texttt{a1e625a897566e5514a76d74660a9358b05a8e7ed967fd43aa4bc933973b7c17}}
 \newcommand{\tamperedhashvalue}{\texttt{<paste modified hash value used in integrity test>}}
 
 \newcommand{\imageplaceholder}[2]{
@@ -159,6 +159,18 @@ The message sequence implemented in the project is:
     its own hash, and compares both hashes.
 \end{enumerate}
 
+\reportfigure
+    {figures/kdc_req.png}
+    {Wireshark capture of Alice's request to the KDC on port 5000}
+    {fig:kdc-req}
+    {Captured packet containing \texttt{REQ||Alice||Bob}.}
+
+\reportfigure
+    {figures/kd_resp.png}
+    {Wireshark capture of the KDC response carrying encrypted key material}
+    {fig:kdc-resp}
+    {Captured packet containing \texttt{KDC\_RESP} with the encrypted session key and Bob's ticket.}
+
 \subsection{Source Files}
 \begin{longtable}{>{\raggedright\arraybackslash}p{0.24\linewidth} >{\raggedright\arraybackslash}p{0.68\linewidth}}
 \toprule
@@ -205,7 +217,7 @@ reported directly.
 To provide a baseline for comparison, the same application-level message should be
 observed in Wireshark without applying the AES encryption step. In the plaintext
 baseline experiment, the message content should be directly visible in the captured
-packet payload, and the string \texttt{11111111 Network Sec.} should appear in
+packet payload, and the string \texttt{150210093 Network Sec.} should appear in
 readable form.
 
 This baseline demonstrates why confidentiality is necessary: an observer on the
@@ -213,10 +225,16 @@ network can recover both the message and its integrity-related fields if they ar
 sent without encryption.
 
 \reportfigure
-    {figures/baseline-wireshark.png}
+    {figures/baselines.png}
     {Baseline Wireshark capture showing plaintext application data}
     {fig:baseline}
     {Insert a Wireshark screenshot where the plaintext message is visibly highlighted.}
+
+\reportfigure
+    {figures/plainmode.png}
+    {Alice terminal output during the plaintext baseline run}
+    {fig:alice-plaintext}
+    {Alice running with \texttt{PLAINTEXT\_MODE=1} for the baseline comparison.}
 
 \noindent\textbf{Observation.}
 In the baseline capture, the packet payload is human-readable. This means an
@@ -250,7 +268,7 @@ The KDC should display the request source and destination identities and the new
 generated session key \(K_s\).
 
 \reportfigure
-    {figures/kdc-terminal.png}
+    {figures/kdc_baselines.png}
     {KDC terminal output during the protocol run}
     {fig:kdc-terminal}
     {Capture the KDC terminal showing the request and generated session key.}
@@ -260,7 +278,7 @@ Alice should display the recovered session key, the ticket received for Bob, the
 plaintext message \(M\), and the hash value \(H(M)\).
 
 \reportfigure
-    {figures/alice-terminal.png}
+    {figures/secured_transmission.png}
     {Alice terminal output during the protocol run}
     {fig:alice-terminal}
     {Capture Alice's terminal showing the session key, ticket, plaintext, and hash.}
@@ -270,7 +288,7 @@ Bob should display the decrypted ticket, recovered session key, sender identity,
 received message, received hash, locally calculated hash, and the final verification result.
 
 \reportfigure
-    {figures/bob-terminal.png}
+    {figures/bob_baselines.png}
     {Bob terminal output during a successful verification}
     {fig:bob-terminal}
     {Capture Bob's terminal showing ticket decryption and successful verification.}
@@ -311,7 +329,7 @@ This experiment proves that the receiver can detect an unauthorized modification
 even when the original message \(M\) itself is left unchanged.
 
 \reportfigure
-    {figures/integrity-failed.png}
+    {figures/integrity_test.png}
     {Bob terminal output after manually flipping one bit in the transmitted hash}
     {fig:integrity}
     {Insert a screenshot where Bob prints \texttt{Verification Failed}.}

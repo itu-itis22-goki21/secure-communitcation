@@ -38,22 +38,26 @@ int main() {
         if (client < 0) continue;
 
         string req = recv_string(client);
+        cout << "[KDC][Step 1] Received raw request = " << req << "\n";
         auto parts = unpack_fields(req);
 
         if (parts.size() == 3 && parts[0] == "REQ") {
             string ida = parts[1];
             string idb = parts[2];
 
-            cout << "[KDC] Request from " << ida << " for " << idb << "\n";
+            cout << "[KDC][Step 1] Parsed request: IDA = " << ida << ", IDB = " << idb << "\n";
 
             auto ks = random_bytes(32);
-            cout << "[KDC] Generated Ks: " << hex_encode(ks) << "\n";
+            cout << "[KDC][Step 2] Generated fresh Ks = " << hex_encode(ks) << "\n";
 
             // Alice gets Ks encrypted for her, while Bob gets a ticket encrypted with Bob's master key.
             auto enc_for_alice = aes_encrypt(KA_KDC, ks);
+            cout << "[KDC][Step 3] E(KA-KDC, Ks) = " << hex_encode(enc_for_alice) << "\n";
 
             string ticket_plain = pack_fields({hex_encode(ks), ida});
+            cout << "[KDC][Step 4] Ticket plaintext for Bob = " << ticket_plain << "\n";
             auto ticket_enc = aes_encrypt(KB_KDC, str_to_bytes(ticket_plain));
+            cout << "[KDC][Step 4] Ticket ciphertext for Bob = " << hex_encode(ticket_enc) << "\n";
 
             string response = pack_fields({
                 "KDC_RESP",
@@ -61,7 +65,10 @@ int main() {
                 hex_encode(ticket_enc)
             });
 
+            cout << "[KDC][Step 5] Sending response to Alice = " << response << "\n";
             send_string(client, response);
+        } else {
+            cerr << "[KDC] Invalid request format\n";
         }
 
         close(client);

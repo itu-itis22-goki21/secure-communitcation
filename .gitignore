@@ -10,6 +10,7 @@ kdc
 .env.*
 !.env.example
 
+
 # LaTeX build outputs
 *.aux
 *.fdb_latexmk
@@ -19,3 +20,4 @@ kdc
 *.pdf
 *.synctex.gz
 *.toc
+*.pcap

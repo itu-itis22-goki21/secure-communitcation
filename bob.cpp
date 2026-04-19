@@ -36,7 +36,9 @@ int main() {
         int client = accept(server_fd, nullptr, nullptr);
         if (client < 0) continue;
 
+        cout << "[Bob][Step 5] Accepted Alice connection\n";
         string ticket_msg = recv_string(client);
+        cout << "[Bob][Step 5] Received ticket message = " << ticket_msg << "\n";
         auto ticket_parts = unpack_fields(ticket_msg);
 
         if (ticket_parts.size() != 2 || ticket_parts[0] != "TICKET") {
@@ -47,6 +49,7 @@ int main() {
 
         auto ticket_enc = hex_decode(ticket_parts[1]);
         auto ticket_plain = bytes_to_str(aes_decrypt(KB_KDC, ticket_enc));
+        cout << "[Bob][Step 5] Decrypted ticket plaintext = " << ticket_plain << "\n";
         auto ticket_fields = unpack_fields(ticket_plain);
 
         if (ticket_fields.size() != 2) {
@@ -59,11 +62,12 @@ int main() {
         string ida = ticket_fields[1];
 
         // The ticket proves the KDC created Ks for Alice and Bob.
-        cout << "[Bob] Ticket decrypted\n";
-        cout << "[Bob] Ks = " << hex_encode(ks) << "\n";
-        cout << "[Bob] IDA = " << ida << "\n";
+        cout << "[Bob][Step 5] Ticket decrypted successfully\n";
+        cout << "[Bob][Step 5] Ks = " << hex_encode(ks) << "\n";
+        cout << "[Bob][Step 5] IDA = " << ida << "\n";
 
         string data_msg = recv_string(client);
+        cout << "[Bob][Step 6] Received data message = " << data_msg << "\n";
         auto data_parts = unpack_fields(data_msg);
         bool plaintext_mode = false;
 
@@ -77,9 +81,12 @@ int main() {
         if (data_parts[0] == "DATA_PLAIN") {
             plaintext_mode = true;
             payload_plain = data_parts[1];
+            cout << "[Bob][Step 6] Plaintext payload received directly\n";
         } else {
             auto enc_payload = hex_decode(data_parts[1]);
+            cout << "[Bob][Step 6] Encrypted payload = " << data_parts[1] << "\n";
             payload_plain = bytes_to_str(aes_decrypt(ks, enc_payload));
+            cout << "[Bob][Step 6] Decrypted payload = " << payload_plain << "\n";
         }
         auto payload_fields = unpack_fields(payload_plain);
 
@@ -97,16 +104,16 @@ int main() {
         string calc_hash_hex = hex_encode(calc_hash);
 
         if (plaintext_mode) {
-            cout << "[Bob] Plaintext baseline mode enabled\n";
+            cout << "[Bob][Step 6] Plaintext baseline mode enabled\n";
         }
-        cout << "[Bob] Received M = " << M << "\n";
-        cout << "[Bob] Received H(M) = " << received_hash_hex << "\n";
-        cout << "[Bob] Calculated H(M) = " << calc_hash_hex << "\n";
+        cout << "[Bob][Step 7] Received M = " << M << "\n";
+        cout << "[Bob][Step 7] Received H(M) = " << received_hash_hex << "\n";
+        cout << "[Bob][Step 7] Calculated H(M) = " << calc_hash_hex << "\n";
 
         if (received_hash_hex == calc_hash_hex) {
-            cout << "[Bob] Verification Successful\n";
+            cout << "[Bob][Step 7] Verification Successful\n";
         } else {
-            cout << "[Bob] Verification Failed\n";
+            cout << "[Bob][Step 7] Verification Failed\n";
         }
 
         close(client);
