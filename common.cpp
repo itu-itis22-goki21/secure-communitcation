@@ -21,6 +21,7 @@ const string BOB_ID = "Bob";
 
 namespace {
 int port_from_env(const char* name, int fallback) {
+    // Docker can inject ports through environment variables without changing code.
     const char* raw = getenv(name);
     if (!raw || !*raw) return fallback;
 
@@ -112,6 +113,7 @@ vector<unsigned char> aes_encrypt(
 
     EVP_CIPHER_CTX_free(ctx);
 
+    // Prefix the IV so the receiver can decrypt with the same random IV.
     vector<unsigned char> out;
     out.insert(out.end(), iv.begin(), iv.end());
     out.insert(out.end(), ciphertext.begin(), ciphertext.end());
@@ -164,6 +166,7 @@ string bytes_to_str(const vector<unsigned char>& v) {
 }
 
 bool send_string(int sock, const string& msg) {
+    // Send a fixed-size length header first so recv_string knows how many bytes to read.
     uint32_t len = htonl(static_cast<uint32_t>(msg.size()));
     if (send(sock, &len, sizeof(len), 0) != sizeof(len)) return false;
 

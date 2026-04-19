@@ -17,6 +17,11 @@ string env_or_default(const char* name, const char* fallback) {
     return (value && *value) ? value : fallback;
 }
 
+bool env_flag(const char* name) {
+    const char* value = getenv(name);
+    return value && string(value) == "1";
+}
+
 int connect_to_host(const string& host, int port, int attempts = 20, int delay_ms = 500) {
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
@@ -24,6 +29,7 @@ int connect_to_host(const string& host, int port, int attempts = 20, int delay_m
 
     string port_str = to_string(port);
 
+    // Retry briefly so Alice can wait for KDC/Bob containers to finish starting up.
     for (int attempt = 0; attempt < attempts; ++attempt) {
         addrinfo* results = nullptr;
         if (getaddrinfo(host.c_str(), port_str.c_str(), &hints, &results) == 0) {
@@ -56,6 +62,8 @@ int main() {
     string M = student_no + " Network Sec.";
     string kdc_host = env_or_default("KDC_HOST", "127.0.0.1");
     string bob_host = env_or_default("BOB_HOST", "127.0.0.1");
+    bool plaintext_mode = env_flag("PLAINTEXT_MODE");
+    bool tamper_hash = env_flag("TAMPER_HASH");
 
     int kdc_sock = connect_to_host(kdc_host, KDC_PORT);
     if (kdc_sock < 0) {
@@ -78,19 +86,22 @@ int main() {
     auto enc_ks = hex_decode(resp_parts[1]);
     auto ticket_for_bob = resp_parts[2];
 
+    // Alice unwraps Ks with the long-term Alice-KDC master key.
     auto ks = aes_decrypt(KA_KDC, enc_ks);
 
     cout << "[Alice] Ks = " << hex_encode(ks) << "\n";
     cout << "[Alice] Ticket for Bob = " << ticket_for_bob << "\n";
 
     auto hm = sha256_bytes(M);
+    if (tamper_hash && !hm.empty()) {
+        hm[0] ^= 0x01;
+    }
     string hm_hex = hex_encode(hm);
 
     cout << "[Alice] M = " << M << "\n";
     cout << "[Alice] H(M) = " << hm_hex << "\n";
 
     string payload_plain = pack_fields({M, hm_hex});
-    auto enc_payload = aes_encrypt(ks, str_to_bytes(payload_plain));
 
     int bob_sock = connect_to_host(bob_host, BOB_PORT);
     if (bob_sock < 0) {
@@ -99,7 +110,15 @@ int main() {
     }
 
     send_string(bob_sock, pack_fields({"TICKET", ticket_for_bob}));
-    send_string(bob_sock, pack_fields({"DATA", hex_encode(enc_payload)}));
+
+    if (plaintext_mode) {
+        // This mode exists only for the baseline Wireshark screenshot.
+        send_string(bob_sock, pack_fields({"DATA_PLAIN", payload_plain}));
+    } else {
+        // Bob receives both the ticket from the KDC and the message encrypted under Ks.
+        auto enc_payload = aes_encrypt(ks, str_to_bytes(payload_plain));
+        send_string(bob_sock, pack_fields({"DATA", hex_encode(enc_payload)}));
+    }
 
     close(bob_sock);
     return 0;

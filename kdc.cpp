@@ -49,6 +49,7 @@ int main() {
             auto ks = random_bytes(32);
             cout << "[KDC] Generated Ks: " << hex_encode(ks) << "\n";
 
+            // Alice gets Ks encrypted for her, while Bob gets a ticket encrypted with Bob's master key.
             auto enc_for_alice = aes_encrypt(KA_KDC, ks);
 
             string ticket_plain = pack_fields({hex_encode(ks), ida});

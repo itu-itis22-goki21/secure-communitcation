@@ -1,0 +1,348 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{array}
+
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\lstdefinestyle{cppstyle}{
+    language=C++,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{teal},
+    stringstyle=\color{red!70!black},
+    numbers=left,
+    numberstyle=\tiny,
+    stepnumber=1,
+    numbersep=8pt,
+    showstringspaces=false,
+    breaklines=true,
+    frame=single
+}
+
+\newcommand{\coursename}{BLG 478E Network Security}
+\newcommand{\reporttitle}{Secure Communication Between Alice and Bob Using a KDC}
+\newcommand{\studentname}{İhsan Gök}
+\newcommand{\studentid}{150210093}
+\newcommand{\submissiondate}{19/04/2026}
+
+\newcommand{\ksa}{\texttt{ALICE\_MASTER\_KEY\_32\_BYTES\_LEN\_!!}}
+\newcommand{\ksb}{\texttt{BOB\_\_MASTER\_KEY\_\_32\_BYTES\_LEN\_!!}}
+
+\newcommand{\sessionkeyvalue}{\texttt{<paste session key Ks from terminal>}}
+\newcommand{\ticketvalue}{\texttt{<paste Bob ticket ciphertext from terminal>}}
+\newcommand{\ciphertextvalue}{\texttt{<paste encrypted payload sent to Bob>}}
+\newcommand{\plaintextvalue}{\texttt{\studentid\ Network Sec.}}
+\newcommand{\hashvalue}{\texttt{0d13a3096a21a1fcd7582676ae5517068d03519f0e4d4bc1918636c12a278a51}}
+\newcommand{\tamperedhashvalue}{\texttt{<paste modified hash value used in integrity test>}}
+
+\newcommand{\imageplaceholder}[2]{
+    \IfFileExists{#1}{
+        \includegraphics[width=\linewidth]{#1}
+    }{
+        \fbox{
+            \parbox[c][0.28\textheight][c]{0.92\linewidth}{
+                \centering
+                Screenshot placeholder\\[4pt]
+                \texttt{#1}\\[8pt]
+                #2
+            }
+        }
+    }
+}
+
+\newcommand{\reportfigure}[4]{
+    \begin{figure}[H]
+        \centering
+        \imageplaceholder{#1}{#4}
+        \caption{#2}
+        \label{#3}
+    \end{figure}
+}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    {\Large \coursename \par}
+    \vspace{1.5cm}
+    {\huge \bfseries \reporttitle \par}
+    \vspace{1.5cm}
+    {\Large Analysis Report \par}
+    \vspace{2cm}
+
+    \begin{tabular}{rl}
+        Student Name: & \studentname \\
+        Student ID: & \studentid \\
+        Date: & \submissiondate \\
+    \end{tabular}
+
+    \vfill
+
+    This report documents the implementation and network analysis of a secure
+    communication system between Alice and Bob using a Key Distribution Center (KDC).
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+This project implements a simple secure communication protocol between Alice and Bob
+with the assistance of a Key Distribution Center (KDC). The KDC creates a fresh
+session key \(K_s\) for each communication request. Alice receives \(K_s\) encrypted
+with her long-term master key, while Bob receives the same session key inside a
+ticket encrypted with Bob's long-term master key. Alice then uses the session key
+to encrypt the message and its SHA-256 hash before sending them to Bob.
+
+The source code is organized into separate programs for the three entities required
+by the assignment:
+
+\begin{itemize}
+    \item \texttt{kdc.cpp}: KDC server
+    \item \texttt{alice.cpp}: Alice client
+    \item \texttt{bob.cpp}: Bob server
+    \item \texttt{common.cpp} and \texttt{common.h}: shared crypto, encoding, and socket helpers
+\end{itemize}
+
+\section{Implementation Overview}
+\subsection{Cryptographic Design}
+The implementation uses the following primitives:
+
+\begin{itemize}
+    \item AES-256-CBC for confidentiality
+    \item SHA-256 for message integrity verification
+    \item A randomly generated 32-byte session key \(K_s\)
+    \item A random 16-byte IV for each AES encryption
+\end{itemize}
+
+The IV is prefixed to each ciphertext so the receiver can decrypt the message using
+the same IV. The ciphertexts and binary values are encoded as hexadecimal strings
+before they are transmitted over the socket connection.
+
+\subsection{Protocol Flow}
+The message sequence implemented in the project is:
+
+\begin{enumerate}
+    \item Alice sends \texttt{REQ||Alice||Bob} to the KDC.
+    \item The KDC generates a fresh session key \(K_s\).
+    \item The KDC sends back:
+    \[
+    \texttt{KDC\_RESP || } E_{K_{A,KDC}}(K_s) \texttt{ || } E_{K_{B,KDC}}(K_s || Alice)
+    \]
+    \item Alice decrypts \(E_{K_{A,KDC}}(K_s)\) to recover \(K_s\).
+    \item Alice computes \(H(M)\) using SHA-256.
+    \item Alice sends Bob:
+    \[
+    \texttt{TICKET || } E_{K_{B,KDC}}(K_s || Alice)
+    \]
+    followed by
+    \[
+    \texttt{DATA || } E_{K_s}(M || H(M))
+    \]
+    \item Bob decrypts the ticket, obtains \(K_s\), decrypts the message, computes
+    its own hash, and compares both hashes.
+\end{enumerate}
+
+\subsection{Source Files}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.24\linewidth} >{\raggedright\arraybackslash}p{0.68\linewidth}}
+\toprule
+\textbf{File} & \textbf{Responsibility} \\
+\midrule
+\endhead
+\texttt{kdc.cpp} & Accepts Alice's request, generates a fresh session key, encrypts the key for Alice, prepares Bob's ticket, and returns both values. \\
+\texttt{alice.cpp} & Connects to the KDC, obtains the session key, hashes the plaintext message, encrypts the payload, and sends the ticket and encrypted payload to Bob. \\
+\texttt{bob.cpp} & Accepts Alice's ticket and encrypted data, decrypts them, recomputes the message hash, and prints either \texttt{Verification Successful} or \texttt{Verification Failed}. \\
+\texttt{common.cpp/h} & Provides AES, SHA-256, random number generation, hex encoding, and framed socket transmission helpers. \\
+\bottomrule
+\end{longtable}
+
+\section{Key and Value Definitions}
+Table~\ref{tab:keys} lists the long-term keys and important values used by the implementation.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.28\linewidth} p{0.62\linewidth}}
+        \toprule
+        \textbf{Item} & \textbf{Value / Description} \\
+        \midrule
+        Alice identity & \texttt{Alice} \\
+        Bob identity & \texttt{Bob} \\
+        Alice-KDC master key \(K_{A,KDC}\) & \ksa \\
+        Bob-KDC master key \(K_{B,KDC}\) & \ksb \\
+        Plaintext message \(M\) & \plaintextvalue \\
+        SHA-256 hash \(H(M)\) & \hashvalue \\
+        Session key \(K_s\) & \sessionkeyvalue \\
+        Bob's encrypted ticket & \ticketvalue \\
+        Alice's encrypted payload to Bob & \ciphertextvalue \\
+        \bottomrule
+    \end{tabular}
+    \caption{Main keys and data values used in the implementation}
+    \label{tab:keys}
+\end{table}
+
+The message text is currently formed in \texttt{alice.cpp} as the student number
+concatenated with the string \texttt{" Network Sec."}. Because the message is fixed
+in the current code, the SHA-256 hash shown above is deterministic and can be
+reported directly.
+
+\section{Baseline Transmission}
+To provide a baseline for comparison, the same application-level message should be
+observed in Wireshark without applying the AES encryption step. In the plaintext
+baseline experiment, the message content should be directly visible in the captured
+packet payload, and the string \texttt{11111111 Network Sec.} should appear in
+readable form.
+
+This baseline demonstrates why confidentiality is necessary: an observer on the
+network can recover both the message and its integrity-related fields if they are
+sent without encryption.
+
+\reportfigure
+    {figures/baseline-wireshark.png}
+    {Baseline Wireshark capture showing plaintext application data}
+    {fig:baseline}
+    {Insert a Wireshark screenshot where the plaintext message is visibly highlighted.}
+
+\noindent\textbf{Observation.}
+In the baseline capture, the packet payload is human-readable. This means an
+attacker sniffing the traffic can directly see the message and any additional fields
+sent alongside it. Such a transmission does not provide confidentiality.
+
+\section{Secured Transmission}
+In the secured implementation, the payload sent from Alice to Bob is encrypted with
+AES-256-CBC using the fresh session key \(K_s\). Wireshark still captures the
+traffic, but the application data is no longer human-readable because it appears as
+hex-encoded ciphertext rather than plaintext.
+
+\reportfigure
+    {figures/secured-wireshark.png}
+    {Wireshark capture of Alice-to-Bob secured transmission}
+    {fig:secured}
+    {Insert a Wireshark screenshot where the ciphertext is highlighted instead of readable plaintext.}
+
+\noindent\textbf{Observation.}
+In the secured capture, the payload does not reveal the original message content.
+Although the packet is visible at the network layer, the plaintext message is hidden
+because only encrypted data and ticket material are transmitted.
+
+\section{Proof of Implementation}
+The terminal outputs of KDC, Alice, and Bob provide direct evidence that the protocol
+was implemented and executed correctly. These outputs should clearly show the
+inputs and outputs of the encryption and decryption steps.
+
+\subsection{KDC Terminal Output}
+The KDC should display the request source and destination identities and the newly
+generated session key \(K_s\).
+
+\reportfigure
+    {figures/kdc-terminal.png}
+    {KDC terminal output during the protocol run}
+    {fig:kdc-terminal}
+    {Capture the KDC terminal showing the request and generated session key.}
+
+\subsection{Alice Terminal Output}
+Alice should display the recovered session key, the ticket received for Bob, the
+plaintext message \(M\), and the hash value \(H(M)\).
+
+\reportfigure
+    {figures/alice-terminal.png}
+    {Alice terminal output during the protocol run}
+    {fig:alice-terminal}
+    {Capture Alice's terminal showing the session key, ticket, plaintext, and hash.}
+
+\subsection{Bob Terminal Output}
+Bob should display the decrypted ticket, recovered session key, sender identity,
+received message, received hash, locally calculated hash, and the final verification result.
+
+\reportfigure
+    {figures/bob-terminal.png}
+    {Bob terminal output during a successful verification}
+    {fig:bob-terminal}
+    {Capture Bob's terminal showing ticket decryption and successful verification.}
+
+\subsection{Step-by-Step Value Summary}
+Table~\ref{tab:proof} is intended to summarize the critical values observed in the
+terminal screenshots. Replace the placeholder fields with the actual values from one
+complete execution trace.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.30\linewidth} p{0.60\linewidth}}
+        \toprule
+        \textbf{Field} & \textbf{Observed Value} \\
+        \midrule
+        Alice \(\rightarrow\) KDC request & \texttt{REQ||Alice||Bob} \\
+        Generated session key \(K_s\) & \sessionkeyvalue \\
+        Alice's decrypted \(K_s\) & \sessionkeyvalue \\
+        Bob ticket ciphertext & \ticketvalue \\
+        Plaintext \(M\) & \plaintextvalue \\
+        Computed hash \(H(M)\) & \hashvalue \\
+        Encrypted payload sent to Bob & \ciphertextvalue \\
+        Bob's calculated hash & \hashvalue \\
+        Final result & \texttt{Verification Successful} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Step-by-step protocol values observed during execution}
+    \label{tab:proof}
+\end{table}
+
+\section{Integrity Test}
+To test the integrity mechanism, one bit of the transmitted hash \(H(M)\) should be
+modified before Bob receives the encrypted payload. After decryption, Bob will
+recompute the hash of the plaintext message and compare it with the tampered value.
+Because the two values are different, Bob must print \texttt{Verification Failed}.
+
+This experiment proves that the receiver can detect an unauthorized modification
+even when the original message \(M\) itself is left unchanged.
+
+\reportfigure
+    {figures/integrity-failed.png}
+    {Bob terminal output after manually flipping one bit in the transmitted hash}
+    {fig:integrity}
+    {Insert a screenshot where Bob prints \texttt{Verification Failed}.}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.30\linewidth} p{0.60\linewidth}}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Original hash \(H(M)\) & \hashvalue \\
+        Tampered hash value & \tamperedhashvalue \\
+        Bob's recomputed hash & \hashvalue \\
+        Bob's final decision & \texttt{Verification Failed} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Integrity test results after one-bit modification}
+\end{table}
+
+\noindent\textbf{Interpretation.}
+The integrity check succeeds because Bob computes a fresh SHA-256 hash from the
+decrypted plaintext and compares it against the received hash. Any bit flip in the
+transmitted hash changes the hexadecimal value, so the comparison fails and Bob
+detects the manipulation.
+
+\section{Conclusion}
+The implementation satisfies the core assignment requirements by using a KDC to
+distribute a fresh session key, AES-256-CBC to provide confidentiality, and SHA-256
+to provide integrity verification. The Wireshark comparison shows the difference
+between plaintext and encrypted transmission, while the terminal traces show the
+full end-to-end protocol execution. Finally, the integrity test confirms that Bob can
+detect tampering when the transmitted hash is modified.
+
+\end{document}

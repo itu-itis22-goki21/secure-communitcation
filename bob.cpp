@@ -58,21 +58,29 @@ int main() {
         auto ks = hex_decode(ticket_fields[0]);
         string ida = ticket_fields[1];
 
+        // The ticket proves the KDC created Ks for Alice and Bob.
         cout << "[Bob] Ticket decrypted\n";
         cout << "[Bob] Ks = " << hex_encode(ks) << "\n";
         cout << "[Bob] IDA = " << ida << "\n";
 
         string data_msg = recv_string(client);
         auto data_parts = unpack_fields(data_msg);
+        bool plaintext_mode = false;
 
-        if (data_parts.size() != 2 || data_parts[0] != "DATA") {
+        if (data_parts.size() != 2 || (data_parts[0] != "DATA" && data_parts[0] != "DATA_PLAIN")) {
             cerr << "[Bob] Invalid data message\n";
             close(client);
             continue;
         }
 
-        auto enc_payload = hex_decode(data_parts[1]);
-        auto payload_plain = bytes_to_str(aes_decrypt(ks, enc_payload));
+        string payload_plain;
+        if (data_parts[0] == "DATA_PLAIN") {
+            plaintext_mode = true;
+            payload_plain = data_parts[1];
+        } else {
+            auto enc_payload = hex_decode(data_parts[1]);
+            payload_plain = bytes_to_str(aes_decrypt(ks, enc_payload));
+        }
         auto payload_fields = unpack_fields(payload_plain);
 
         if (payload_fields.size() != 2) {
@@ -84,9 +92,13 @@ int main() {
         string M = payload_fields[0];
         string received_hash_hex = payload_fields[1];
 
+        // Bob recomputes H(M) locally to check message integrity.
         auto calc_hash = sha256_bytes(M);
         string calc_hash_hex = hex_encode(calc_hash);
 
+        if (plaintext_mode) {
+            cout << "[Bob] Plaintext baseline mode enabled\n";
+        }
         cout << "[Bob] Received M = " << M << "\n";
         cout << "[Bob] Received H(M) = " << received_hash_hex << "\n";
         cout << "[Bob] Calculated H(M) = " << calc_hash_hex << "\n";

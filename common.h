@@ -15,6 +15,7 @@ extern int BOB_PORT;
 extern const vector<unsigned char> KA_KDC;
 extern const vector<unsigned char> KB_KDC;
 
+// Crypto and encoding helpers shared by all three programs.
 vector<unsigned char> random_bytes(size_t n);
 vector<unsigned char> sha256_bytes(const string& data);
 string hex_encode(const vector<unsigned char>& data);
@@ -36,6 +37,7 @@ string bytes_to_str(const vector<unsigned char>& v);
 bool send_string(int sock, const string& msg);
 string recv_string(int sock);
 
+// Messages are serialized as field1||field2||... for this homework protocol.
 string pack_fields(const vector<string>& fields);
 vector<string> unpack_fields(const string& packed);
 
